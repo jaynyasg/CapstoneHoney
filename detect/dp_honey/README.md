@@ -169,10 +169,29 @@ secret family but never a real, valid, or usable credential.
 | `jwt` | JWT-shaped Token | base64url(20).(40).(43), unsigned | No — shape only |
 | `ssh-private-key` | SSH Private Key (marker) | PEM armor + 64×base64url body | No — shape only |
 | `stripe-sk-live` | Stripe sk_live_ Secret Key | `sk_live_` + 24×[A–Za–z0–9] | No — shape only |
-| `github-ghp` | GitHub Personal Access Token | `ghp_` + 36×[A–Za–z0–9] | No — shape only |
+| `github-ghp` | GitHub Personal Access Token | `ghp_` + 30 base62 + CRC | No — shape only (checksum-valid) |
+| `slack-bot-token` | Slack Bot Token | `xoxb-` + 12d-12d-24 alnum | No — shape only |
+| `slack-user-token` | Slack User Token | `xoxp-` + 12d-12d-24 alnum | No — shape only |
+| `slack-webhook-url` | Slack Webhook URL | hooks.slack.com/services/T../B../.. | No — shape only |
+| `google-api-key` | Google API Key | `AIza` + 35 base64url | No — shape only |
+| `openai-project-key` | OpenAI Project Key | `sk-proj-` + 48 base64url | No — shape only |
+| `anthropic-api-key` | Anthropic API Key | `sk-ant-api03-` + 93 base64url + AA | No — shape only |
+| `sendgrid-key` | SendGrid API Key | `SG.` + 22.43 base64url | No — shape only |
+| `twilio-account-sid` | Twilio Account SID | `AC` + 32 hex | No — shape only |
+| `twilio-api-key-sid` | Twilio API Key SID | `SK` + 32 hex | No — shape only |
+| `github-oauth` | GitHub OAuth Token | `gho_` + 30 base62 + CRC | No — shape only (checksum-valid) |
+| `github-user-to-server` | GitHub User-to-Server Token | `ghu_` + 30 base62 + CRC | No — shape only (checksum-valid) |
+| `github-server-to-server` | GitHub Server-to-Server Token (legacy) | `ghs_` + 30 base62 + CRC | No — shape only (checksum-valid legacy shape) |
+| `github-refresh` | GitHub Refresh Token | `ghr_` + 30 base62 + CRC | No — shape only (checksum-valid) |
+| `github-fine-grained` | GitHub Fine-grained PAT | `github_pat_` + 22 alnum + `_` + 59 alnum | No — shape only |
 
 `jwt` produces an **unsigned**, non-verifiable shape; `ssh-private-key` produces a
 PEM-armored **marker** with a short synthetic body, not a real or decryptable key.
+Classic GitHub-family tokens carry a valid body-only base62-CRC32 checksum, but
+remain non-functional because no provider record exists; fine-grained PATs are
+structural-only until a public checksum vector is pinned. The `ghs_` row covers
+the legacy 40-character installation-token shape, not the 2026 stateless
+`ghs_APPID_JWT` rollout.
 
 ---
 

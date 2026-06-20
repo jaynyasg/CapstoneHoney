@@ -13,7 +13,9 @@ from .grammar import (
     ALNUM,
     BASE64,
     BASE64URL,
+    Checksum,
     DIGITS,
+    HEX,
     LOWER,
     PASSWORD,
     UPPER,
@@ -24,7 +26,7 @@ from .grammar import (
 )
 
 # Bump when the structure of any spec changes in a backward-incompatible way.
-REGISTRY_VERSION = "1"
+REGISTRY_VERSION = "2"
 
 # Reusable disclaimer appended to every safety note.
 SHAPE_ONLY = (
@@ -62,6 +64,7 @@ _SPECS: tuple[FormatSpec, ...] = (
         category="cloud-secret",
         segments=(Variable("body", BASE64, 40),),
         safety_note="40-character AWS-secret shape. " + SHAPE_ONLY,
+        scannable=False,
     ),
     FormatSpec(
         slug="oauth-bearer",
@@ -70,6 +73,7 @@ _SPECS: tuple[FormatSpec, ...] = (
         category="token",
         segments=(Variable("token", BASE64URL, 40),),
         safety_note="Opaque bearer-token shape. " + SHAPE_ONLY,
+        scannable=False,
     ),
     FormatSpec(
         slug="generic-sk",
@@ -86,6 +90,7 @@ _SPECS: tuple[FormatSpec, ...] = (
         category="password",
         segments=(Variable("password", PASSWORD, 20),),
         safety_note="Random strong-password shape. " + SHAPE_ONLY,
+        scannable=False,
         extra_predicate=_password_predicate,
     ),
     FormatSpec(
@@ -131,10 +136,149 @@ _SPECS: tuple[FormatSpec, ...] = (
     FormatSpec(
         slug="github-ghp",
         name="GitHub Personal Access Token (ghp_)",
-        description="GitHub personal access token shape ('ghp_' prefix).",
+        description="GitHub classic personal access token (checksum-valid).",
         category="vcs-token",
-        segments=(Literal("ghp_"), Variable("body", ALNUM, 36)),
-        safety_note="'ghp_'-prefixed GitHub-token shape. " + SHAPE_ONLY,
+        segments=(Literal("ghp_"), Variable("body", ALNUM, 30), Checksum("crc", 6, "github-crc32-base62")),
+        safety_note="'ghp_' GitHub-token shape with valid checksum. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="slack-bot-token",
+        name="Slack Bot Token",
+        description="Slack bot token (xoxb-).",
+        category="token",
+        segments=(
+            Literal("xoxb-"),
+            Variable("a", DIGITS, 12),
+            Literal("-"),
+            Variable("b", DIGITS, 12),
+            Literal("-"),
+            Variable("c", ALNUM, 24),
+        ),
+        safety_note="'xoxb-' Slack-bot-token shape. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="slack-user-token",
+        name="Slack User Token",
+        description="Slack user token (xoxp-).",
+        category="token",
+        segments=(
+            Literal("xoxp-"),
+            Variable("a", DIGITS, 12),
+            Literal("-"),
+            Variable("b", DIGITS, 12),
+            Literal("-"),
+            Variable("c", ALNUM, 24),
+        ),
+        safety_note="'xoxp-' Slack-user-token shape. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="slack-webhook-url",
+        name="Slack Webhook URL",
+        description="Slack incoming webhook URL.",
+        category="webhook",
+        segments=(
+            Literal("https://hooks.slack.com/services/T"),
+            Variable("t", UPPER_DIGITS, 10),
+            Literal("/B"),
+            Variable("b", UPPER_DIGITS, 10),
+            Literal("/"),
+            Variable("s", ALNUM, 24),
+        ),
+        safety_note="Slack-webhook-URL shape. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="google-api-key",
+        name="Google API Key",
+        description="Google API key (AIza...).",
+        category="api-key",
+        segments=(Literal("AIza"), Variable("body", BASE64URL, 35)),
+        safety_note="'AIza' Google-API-key shape. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="openai-project-key",
+        name="OpenAI Project Key",
+        description="OpenAI project API key (sk-proj-).",
+        category="api-key",
+        segments=(Literal("sk-proj-"), Variable("body", BASE64URL, 48)),
+        safety_note="'sk-proj-' OpenAI-key shape. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="anthropic-api-key",
+        name="Anthropic API Key",
+        description="Anthropic API key (sk-ant-api03-).",
+        category="api-key",
+        segments=(Literal("sk-ant-api03-"), Variable("body", BASE64URL, 93), Literal("AA")),
+        safety_note="'sk-ant-api03-' Anthropic-key shape. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="sendgrid-key",
+        name="SendGrid API Key",
+        description="SendGrid API key (SG.).",
+        category="api-key",
+        segments=(Literal("SG."), Variable("a", BASE64URL, 22), Literal("."), Variable("b", BASE64URL, 43)),
+        safety_note="'SG.' SendGrid-key shape. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="twilio-account-sid",
+        name="Twilio Account SID",
+        description="Twilio Account SID (AC + 32 hex).",
+        category="cloud-key",
+        segments=(Literal("AC"), Variable("body", HEX, 32)),
+        safety_note="'AC' Twilio-Account-SID shape. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="twilio-api-key-sid",
+        name="Twilio API Key SID",
+        description="Twilio API Key SID (SK + 32 hex).",
+        category="cloud-key",
+        segments=(Literal("SK"), Variable("body", HEX, 32)),
+        safety_note="'SK' Twilio-API-key-SID shape. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="github-oauth",
+        name="GitHub OAuth Token (gho_)",
+        description="GitHub OAuth access token (checksum-valid).",
+        category="vcs-token",
+        segments=(Literal("gho_"), Variable("body", ALNUM, 30), Checksum("crc", 6, "github-crc32-base62")),
+        safety_note="'gho_' GitHub-OAuth-token shape with valid checksum. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="github-user-to-server",
+        name="GitHub User-to-Server Token (ghu_)",
+        description="GitHub app user-to-server token (checksum-valid).",
+        category="vcs-token",
+        segments=(Literal("ghu_"), Variable("body", ALNUM, 30), Checksum("crc", 6, "github-crc32-base62")),
+        safety_note="'ghu_' GitHub-token shape with valid checksum. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="github-server-to-server",
+        name="GitHub Server-to-Server Token (legacy ghs_)",
+        description="Legacy 40-character GitHub App installation token (checksum-valid).",
+        category="vcs-token",
+        segments=(Literal("ghs_"), Variable("body", ALNUM, 30), Checksum("crc", 6, "github-crc32-base62")),
+        safety_note=(
+            "'ghs_' legacy GitHub-installation-token shape with valid checksum. "
+            "New 2026 stateless ghs_APPID_JWT tokens are out of scope. " + SHAPE_ONLY
+        ),
+    ),
+    FormatSpec(
+        slug="github-refresh",
+        name="GitHub Refresh Token (ghr_)",
+        description="GitHub refresh token (checksum-valid).",
+        category="vcs-token",
+        segments=(Literal("ghr_"), Variable("body", ALNUM, 30), Checksum("crc", 6, "github-crc32-base62")),
+        safety_note="'ghr_' GitHub-token shape with valid checksum. " + SHAPE_ONLY,
+    ),
+    FormatSpec(
+        slug="github-fine-grained",
+        name="GitHub Fine-grained PAT (github_pat_)",
+        description="GitHub fine-grained PAT shape; checksum behavior is not claimed.",
+        category="vcs-token",
+        segments=(Literal("github_pat_"), Variable("a", ALNUM, 22), Literal("_"), Variable("b", ALNUM, 59)),
+        safety_note=(
+            "'github_pat_' fine-grained-PAT shape. No checksum-valid claim is made "
+            "without a public reference vector. " + SHAPE_ONLY
+        ),
     ),
 )
 

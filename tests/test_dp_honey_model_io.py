@@ -77,6 +77,15 @@ def test_snapshot_structure_drift_raises():
         load_model(data)
 
 
+def test_unknown_checksum_algorithm_in_snapshot_raises_schema_error():
+    data = model_to_dict(build_model("github-ghp", corpus_size=20, train_seed=1))
+    for segment in data["format"]["spec_snapshot"]["segments"]:
+        if segment.get("kind") == "checksum":
+            segment["algorithm"] = "totally-unknown"
+    with pytest.raises(ModelSchemaError):
+        load_model(data)
+
+
 def test_unknown_format_slug_raises():
     data = _valid_dict()
     data["format"]["slug"] = "not-a-real-format"

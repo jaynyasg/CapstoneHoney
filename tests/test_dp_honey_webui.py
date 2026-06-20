@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from detect.dp_honey import get_format
+from detect.dp_honey import get_format, list_format_slugs
 from detect.dp_honey.errors import CountLimitError, DPHoneyError, ModelArtifactExistsError
 from detect.dp_honey.webui import service
 from detect.dp_honey.webui.service import InvalidModelName
@@ -34,7 +34,7 @@ def test_list_formats_payload_has_all_slugs_and_safety():
     payload = service.list_formats_payload()
     slugs = {item["slug"] for item in payload}
     assert "github-ghp" in slugs and "aws-access-key-id" in slugs
-    assert len(slugs) == 9
+    assert slugs == set(list_format_slugs())
     for item in payload:
         assert item["safety_note"]
         assert item["provider_valid"] is False

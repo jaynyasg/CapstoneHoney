@@ -128,6 +128,7 @@ def load_model(source: ArtifactSource) -> BigramHoneytokenModel:
 
     stored_hash = _field(fmt, "spec_hash")
     stored_snapshot = _field(fmt, "spec_snapshot")
+    _validate_checksum_algorithms(stored_snapshot)
     if stored_hash != live.spec_hash() or stored_snapshot != live.to_snapshot():
         from .errors import FormatSpecMismatchError
 
@@ -186,6 +187,20 @@ def _require(condition: bool, message: str) -> None:
 def _field(mapping: object, key: str):
     _require(isinstance(mapping, dict) and key in mapping, f"missing or malformed field: {key!r}")
     return mapping[key]  # type: ignore[index]
+
+
+def _validate_checksum_algorithms(stored_snapshot: object) -> None:
+    from .checksums import CHECKSUM_ALGORITHMS
+
+    if not isinstance(stored_snapshot, dict):
+        return
+    for segment in stored_snapshot.get("segments", []):
+        if isinstance(segment, dict) and segment.get("kind") == "checksum":
+            algorithm = segment.get("algorithm")
+            _require(
+                isinstance(algorithm, str) and algorithm in CHECKSUM_ALGORITHMS,
+                f"unknown checksum algorithm: {algorithm!r}",
+            )
 
 
 def _num(mapping: dict, key: str) -> float:
