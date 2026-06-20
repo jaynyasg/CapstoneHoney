@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "dp-honey"
 version = "0.1.0"
 description = "DP-HONEY: synthetic, non-functional honeytoken generator (DP-noised character bigram). Shape-only decoys for credential-leak detection research."
+readme = "detect/dp_honey/README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Aegis Capstone" }]
