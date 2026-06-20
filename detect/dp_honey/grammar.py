@@ -33,6 +33,7 @@ UPPER_DIGITS = UPPER + DIGITS
 BASE64 = ALNUM + "+/"
 BASE64URL = ALNUM + "-_"
 PASSWORD = ALNUM + "!@#$%^&*()-_=+"
+HEX = "0123456789abcdef"
 
 
 def canonical_json(obj: object) -> str:
@@ -67,7 +68,29 @@ class Variable:
         }
 
 
-Segment = Union[Literal, Variable]
+@dataclass(frozen=True)
+class Checksum:
+    """A computed segment derived from preceding variable payload.
+
+    ``algorithm`` is an id resolved through :mod:`detect.dp_honey.checksums`.
+    The value is never sampled by the bigram model; it is derived at assembly
+    time and verified at validation time. Only the id is serialized.
+    """
+
+    name: str
+    length: int
+    algorithm: str
+
+    def to_dict(self) -> dict:
+        return {
+            "kind": "checksum",
+            "name": self.name,
+            "length": self.length,
+            "algorithm": self.algorithm,
+        }
+
+
+Segment = Union[Literal, Variable, Checksum]
 
 
 @dataclass(frozen=True)
@@ -89,6 +112,7 @@ class FormatSpec:
     segments: tuple
     safety_note: str
     provider_valid: bool = False
+    scannable: bool = True
     extra_predicate: Optional[Callable[[str], bool]] = None
 
     def variable_segments(self) -> list[Variable]:
@@ -103,14 +127,21 @@ class FormatSpec:
 
     def assemble(self, variables: list[str]) -> str:
         """Interleave fixed literals with sampled *variables* into a full token."""
+        from .checksums import compute_checksum
+
         out: list[str] = []
+        checksum_input: list[str] = []
         vi = 0
         for seg in self.segments:
             if isinstance(seg, Literal):
                 out.append(seg.text)
-            else:
-                out.append(variables[vi])
+            elif isinstance(seg, Variable):
+                value = variables[vi]
+                out.append(value)
+                checksum_input.append(value)
                 vi += 1
+            else:
+                out.append(compute_checksum(seg.algorithm, "".join(checksum_input), length=seg.length))
         return "".join(out)
 
     def extract_variables(self, token: str) -> Optional[list[str]]:
@@ -120,20 +151,32 @@ class FormatSpec:
         when the token has trailing characters. This is the structural half of
         validation and is reused by training to recover the variable stream.
         """
+        from .checksums import compute_checksum
+
         pos = 0
         variables: list[str] = []
+        checksum_input: list[str] = []
         for seg in self.segments:
             if isinstance(seg, Literal):
                 if not token.startswith(seg.text, pos):
                     return None
                 pos += len(seg.text)
-            else:
+            elif isinstance(seg, Variable):
                 chunk = token[pos : pos + seg.length]
                 if len(chunk) != seg.length:
                     return None
                 if any(c not in seg.alphabet for c in chunk):
                     return None
                 variables.append(chunk)
+                checksum_input.append(chunk)
+                pos += seg.length
+            else:
+                chunk = token[pos : pos + seg.length]
+                if len(chunk) != seg.length:
+                    return None
+                expected = compute_checksum(seg.algorithm, "".join(checksum_input), length=seg.length)
+                if chunk != expected:
+                    return None
                 pos += seg.length
         if pos != len(token):
             return None
