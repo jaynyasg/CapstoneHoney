@@ -11,7 +11,12 @@ import re
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
+
+from ..__main__ import GENERATE_MAX
 from ..errors import DPHoneyError
+from ..formats import get_format, list_formats
+from ..realism import REPORT_MAX, enforce_count_limit
 
 # Reserved label the UI uses for the committed synthetic golden fixture.
 GOLDEN_NAME = "golden-fixture"
@@ -41,3 +46,26 @@ def resolve_model_ref(name: str, models_dir: Optional[Path] = None) -> Path:
         raise InvalidModelName(f"unsafe or unknown model name: {name!r}")
     filename = name if name.endswith(".json") else f"{name}.json"
     return _models_dir(models_dir) / filename
+
+
+def list_formats_payload() -> list[dict]:
+    """All registered formats as JSON-friendly dicts (for the UI)."""
+    return [
+        {
+            "slug": spec.slug,
+            "name": spec.name,
+            "category": spec.category,
+            "description": spec.description,
+            "safety_note": spec.safety_note,
+            "provider_valid": spec.provider_valid,
+        }
+        for spec in list_formats()
+    ]
+
+
+def preview_corpus(fmt: str, count: int, seed: int) -> list[str]:
+    """Return *count* synthetic, spec-valid corpus examples for *fmt*."""
+    enforce_count_limit(count, maximum=GENERATE_MAX, label="count")
+    spec = get_format(fmt)
+    rng = np.random.default_rng(seed)
+    return [spec.random_example(rng) for _ in range(count)]
