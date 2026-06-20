@@ -11,7 +11,8 @@ from detect.dp_honey.webui.service import InvalidModelName
 
 
 @pytest.mark.parametrize(
-    "bad", ["../secret", "a/b", "a\\b", "..", ".", ".hidden", "", "name with space", "/abs"]
+    "bad",
+    ["../secret", "a/b", "a\\b", "..", ".", ".hidden", "", "name with space", "/abs", "x" * 101],
 )
 def test_resolve_model_ref_rejects_unsafe_names(bad, tmp_path):
     with pytest.raises(InvalidModelName):

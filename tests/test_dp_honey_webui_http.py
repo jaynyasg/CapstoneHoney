@@ -39,3 +39,9 @@ def test_http_dphoney_error_maps_to_400():
     resp = _client().post("/api/generate", json={"source": "format", "format": "nope", "count": 1})
     assert resp.status_code == 400
     assert "error" in resp.json()
+
+
+def test_http_index_serves_html_with_safety_banner():
+    resp = _client().get("/")
+    assert resp.status_code == 200
+    assert "NOT real" in resp.text

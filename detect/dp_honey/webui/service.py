@@ -38,6 +38,7 @@ GOLDEN_NAME = "golden-fixture"
 GOLDEN_PATH = _PKG_ROOT / "tests" / "fixtures" / "dp_honey" / "golden_model.json"
 
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+_MAX_NAME_LEN = 100
 
 _SAFETY = {
     "synthetic_only": True,
@@ -63,7 +64,13 @@ def resolve_model_ref(name: str, models_dir: Optional[Path] = None) -> Path:
     """
     if name == GOLDEN_NAME:
         return GOLDEN_PATH
-    if not name or name.startswith(".") or ".." in name or not _SAFE_NAME.match(name):
+    if (
+        not name
+        or name.startswith(".")
+        or ".." in name
+        or len(name) > _MAX_NAME_LEN
+        or not _SAFE_NAME.match(name)
+    ):
         raise InvalidModelName(f"unsafe or unknown model name: {name!r}")
     filename = name if name.endswith(".json") else f"{name}.json"
     return _models_dir(models_dir) / filename
@@ -144,6 +151,7 @@ def run_train(params: dict, models_dir: Optional[Path] = None) -> dict:
         or not out_name
         or out_name.startswith(".")
         or ".." in out_name
+        or len(out_name) > _MAX_NAME_LEN
         or not _SAFE_NAME.match(out_name)
     ):
         raise InvalidModelName(f"unsafe output name: {out_name!r}")
