@@ -29,9 +29,13 @@ from ..formats import get_format, list_formats
 from ..model_io import load_model, read_artifact_dict, save_model
 from ..realism import REPORT_MAX, compute_report, enforce_count_limit
 
+# Repo root (this file is detect/dp_honey/webui/service.py -> parents[3]) so the
+# golden fixture and default models dir resolve regardless of the process CWD.
+_PKG_ROOT = Path(__file__).resolve().parents[3]
+
 # Reserved label the UI uses for the committed synthetic golden fixture.
 GOLDEN_NAME = "golden-fixture"
-GOLDEN_PATH = Path("tests/fixtures/dp_honey/golden_model.json")
+GOLDEN_PATH = _PKG_ROOT / "tests" / "fixtures" / "dp_honey" / "golden_model.json"
 
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 
@@ -47,7 +51,7 @@ class InvalidModelName(DPHoneyError):
 
 
 def _models_dir(models_dir: Optional[Path]) -> Path:
-    return Path(models_dir) if models_dir is not None else Path("models")
+    return Path(models_dir) if models_dir is not None else _PKG_ROOT / "models"
 
 
 def resolve_model_ref(name: str, models_dir: Optional[Path] = None) -> Path:
@@ -59,7 +63,7 @@ def resolve_model_ref(name: str, models_dir: Optional[Path] = None) -> Path:
     """
     if name == GOLDEN_NAME:
         return GOLDEN_PATH
-    if not name or ".." in name or not _SAFE_NAME.match(name):
+    if not name or name.startswith(".") or ".." in name or not _SAFE_NAME.match(name):
         raise InvalidModelName(f"unsafe or unknown model name: {name!r}")
     filename = name if name.endswith(".json") else f"{name}.json"
     return _models_dir(models_dir) / filename
@@ -90,9 +94,15 @@ def preview_corpus(fmt: str, count: int, seed: int) -> list[str]:
 
 def _model_from_params(params: dict, models_dir: Optional[Path] = None) -> BigramHoneytokenModel:
     if params.get("source") == "model":
-        return load_model(resolve_model_ref(params["model"], models_dir))
+        model_name = params.get("model")
+        if not model_name:
+            raise InvalidModelName("'model' is required when source='model'")
+        return load_model(resolve_model_ref(model_name, models_dir))
+    fmt = params.get("format")
+    if not fmt:
+        raise DPHoneyError("'format' is required when source='format'")
     return build_model(
-        params["format"],
+        fmt,
         epsilon=float(params.get("epsilon", DEFAULT_EPSILON)),
         clip=float(params.get("clip", DEFAULT_CLIP)),
         corpus_size=int(params.get("corpus_size", DEFAULT_CORPUS_SIZE)),
@@ -129,13 +139,22 @@ def run_report(params: dict, models_dir: Optional[Path] = None) -> dict:
 def run_train(params: dict, models_dir: Optional[Path] = None) -> dict:
     """Train a model from format params and save it into the models dir."""
     out_name = params.get("out_name", "")
-    if out_name == GOLDEN_NAME or not out_name or ".." in out_name or not _SAFE_NAME.match(out_name):
+    if (
+        out_name == GOLDEN_NAME
+        or not out_name
+        or out_name.startswith(".")
+        or ".." in out_name
+        or not _SAFE_NAME.match(out_name)
+    ):
         raise InvalidModelName(f"unsafe output name: {out_name!r}")
+    fmt = params.get("format")
+    if not fmt:
+        raise DPHoneyError("'format' is required for training")
     directory = _models_dir(models_dir)
     directory.mkdir(parents=True, exist_ok=True)
     filename = out_name if out_name.endswith(".json") else f"{out_name}.json"
     model = build_model(
-        params["format"],
+        fmt,
         epsilon=float(params.get("epsilon", DEFAULT_EPSILON)),
         clip=float(params.get("clip", DEFAULT_CLIP)),
         corpus_size=int(params.get("corpus_size", DEFAULT_CORPUS_SIZE)),

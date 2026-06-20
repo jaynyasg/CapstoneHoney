@@ -5,12 +5,14 @@ from __future__ import annotations
 import pytest
 
 from detect.dp_honey import get_format
-from detect.dp_honey.errors import CountLimitError, ModelArtifactExistsError
+from detect.dp_honey.errors import CountLimitError, DPHoneyError, ModelArtifactExistsError
 from detect.dp_honey.webui import service
 from detect.dp_honey.webui.service import InvalidModelName
 
 
-@pytest.mark.parametrize("bad", ["../secret", "a/b", "a\\b", "..", "", "name with space", "/abs"])
+@pytest.mark.parametrize(
+    "bad", ["../secret", "a/b", "a\\b", "..", ".", ".hidden", "", "name with space", "/abs"]
+)
 def test_resolve_model_ref_rejects_unsafe_names(bad, tmp_path):
     with pytest.raises(InvalidModelName):
         service.resolve_model_ref(bad, models_dir=tmp_path)
@@ -132,3 +134,23 @@ def test_run_validate_reports_error_for_bad_artifact(tmp_path):
     result = service.run_validate("broken", models_dir=tmp_path)
     assert result["valid"] is False
     assert result["error"]
+
+
+def test_run_inspect_missing_file_raises(tmp_path):
+    with pytest.raises(DPHoneyError):
+        service.run_inspect("nonexistent", models_dir=tmp_path)
+
+
+def test_run_generate_missing_model_name_raises():
+    with pytest.raises(DPHoneyError):
+        service.run_generate({"source": "model"})  # 'model' key absent -> 400, not 500
+
+
+def test_run_generate_missing_format_raises():
+    with pytest.raises(DPHoneyError):
+        service.run_generate({"source": "format"})  # 'format' key absent -> 400, not 500
+
+
+def test_run_report_metadata_is_synthetic_only():
+    report = service.run_report({"source": "format", "format": "github-ghp", "count": 10, "seed": 1})
+    assert report["safety"]["provider_valid"] is False
