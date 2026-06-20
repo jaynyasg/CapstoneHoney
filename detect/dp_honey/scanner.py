@@ -8,6 +8,9 @@ never store, log, or return the matched secret value.
 from __future__ import annotations
 
 import re
+import math
+import random
+import string
 from functools import lru_cache
 
 from .bigram import generate_honeytokens
@@ -18,6 +21,8 @@ _BOUNDARY_BEFORE = r"(?<![A-Za-z0-9_./+-])"
 _BOUNDARY_AFTER = r"(?![A-Za-z0-9_/+-])"
 _CHECKSUM_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 _CONFIDENCE_RANK = {"high": 2, "medium": 1, "low": 0}
+_UNKNOWN_FORMAT = "unknown-token"
+_UNKNOWN_TOKEN_RE = re.compile(_BOUNDARY_BEFORE + r"[A-Za-z0-9][A-Za-z0-9._~+/\-]{23,}={0,2}" + _BOUNDARY_AFTER)
 
 
 def _segment_pattern(spec: FormatSpec) -> str:
@@ -60,6 +65,7 @@ def scan(text: str) -> list[dict[str, int | str]]:
                     "confidence": "high" if checksummed else "medium",
                 }
             )
+    raw.extend(_unknown_findings(text))
     return _dedupe(raw)
 
 
@@ -73,7 +79,7 @@ def auto_decoy(text: str, *, seed: int = 0) -> dict[str, object]:
         attempt = 0
         while decoy == original and attempt < 1000:
             sample_seed = seed + (index * 1000) + attempt
-            decoy = generate_honeytokens(str(finding["format"]), count=1, sample_seed=sample_seed)[0]
+            decoy = _decoy_for_finding(original, str(finding["format"]), sample_seed)
             attempt += 1
         decoys.append(decoy)
 
@@ -93,6 +99,84 @@ def _scannable_specs() -> list[FormatSpec]:
 
 def _has_checksum(spec: FormatSpec) -> bool:
     return any(isinstance(segment, Checksum) for segment in spec.segments)
+
+
+def _unknown_findings(text: str) -> list[dict[str, int | str]]:
+    findings: list[dict[str, int | str]] = []
+    for match in _UNKNOWN_TOKEN_RE.finditer(text):
+        candidate = match.group(0)
+        if not _is_unknown_secret_like(candidate):
+            continue
+        findings.append(
+            {
+                "format": _UNKNOWN_FORMAT,
+                "start": match.start(),
+                "end": match.end(),
+                "confidence": "low",
+            }
+        )
+    return findings
+
+
+def _is_unknown_secret_like(token: str) -> bool:
+    core = token.rstrip("=")
+    if len(core) < 24:
+        return False
+    classes = sum(
+        (
+            any(char.islower() for char in core),
+            any(char.isupper() for char in core),
+            any(char.isdigit() for char in core),
+            any(char in "._~+/-" for char in core),
+        )
+    )
+    entropy = _shannon_entropy(core)
+    prefix_len = _unknown_prefix_length(core)
+    if prefix_len and len(core) - prefix_len >= 16 and classes >= 2:
+        return entropy >= 3.0
+    return len(core) >= 32 and classes >= 2 and entropy >= 3.3
+
+
+def _shannon_entropy(text: str) -> float:
+    counts = {char: text.count(char) for char in set(text)}
+    total = len(text)
+    return -sum((count / total) * math.log2(count / total) for count in counts.values())
+
+
+def _unknown_prefix_length(token: str) -> int:
+    search_window = token[: min(len(token), 24)]
+    last = max(search_window.rfind("_"), search_window.rfind("-"))
+    if last < 1:
+        return 0
+    prefix = token[: last + 1]
+    suffix = token[last + 1 :]
+    if len(suffix) < 16 or not any(char.isalpha() for char in prefix):
+        return 0
+    return last + 1
+
+
+def _decoy_for_finding(original: str, fmt: str, seed: int) -> str:
+    if fmt == _UNKNOWN_FORMAT:
+        return _generate_unknown_decoy(original, seed)
+    return generate_honeytokens(fmt, count=1, sample_seed=seed)[0]
+
+
+def _generate_unknown_decoy(original: str, seed: int) -> str:
+    rng = random.Random(seed)
+    prefix_len = _unknown_prefix_length(original.rstrip("="))
+    chars: list[str] = []
+    for index, char in enumerate(original):
+        if index < prefix_len or char in "._~+/-=":
+            chars.append(char)
+        elif char.islower():
+            chars.append(rng.choice(string.ascii_lowercase))
+        elif char.isupper():
+            chars.append(rng.choice(string.ascii_uppercase))
+        elif char.isdigit():
+            chars.append(rng.choice(string.digits))
+        else:
+            chars.append(rng.choice(string.ascii_letters + string.digits))
+    return "".join(chars)
 
 
 def _dedupe(findings: list[dict[str, int | str]]) -> list[dict[str, int | str]]:

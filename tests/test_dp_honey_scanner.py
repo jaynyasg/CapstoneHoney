@@ -43,6 +43,27 @@ def test_scan_of_plain_text_is_empty():
     assert scanner.scan("nothing secret here, just words") == []
 
 
+def test_scan_falls_back_to_unknown_token_shape():
+    token = "vendor_live_abC123XYZ999qweRTY456mno"
+    text = f"CUSTOM_TOKEN={token}"
+    findings = scanner.scan(text)
+    assert findings == [
+        {
+            "format": "unknown-token",
+            "start": len("CUSTOM_TOKEN="),
+            "end": len(text),
+            "confidence": "low",
+        }
+    ]
+    assert text[findings[0]["start"] : findings[0]["end"]] == token
+
+
+def test_known_registry_match_wins_over_unknown_fallback():
+    ghp = _example("github-ghp", 9)
+    findings = scanner.scan(ghp)
+    assert [finding["format"] for finding in findings] == ["github-ghp"]
+
+
 def test_scan_allows_sentence_punctuation_after_token():
     ghp = _example("github-ghp", 6)
     findings = scanner.scan(f"token: {ghp}.")
@@ -74,3 +95,14 @@ def test_auto_decoy_avoids_reusing_identical_generated_token():
     result = scanner.auto_decoy(ghp, seed=1)
     assert result["decoys"][0] != ghp
     assert result["swapped_text"] != ghp
+
+
+def test_auto_decoy_replaces_unknown_tokens_with_same_shape_fallback():
+    token = "vendor_live_abC123XYZ999qweRTY456mno"
+    result = scanner.auto_decoy(f"CUSTOM_TOKEN={token}", seed=12)
+    decoy = result["decoys"][0]
+    assert result["findings"][0]["format"] == "unknown-token"
+    assert decoy.startswith("vendor_live_")
+    assert decoy != token
+    assert token not in result["swapped_text"]
+    assert decoy in result["swapped_text"]

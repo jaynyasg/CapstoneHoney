@@ -97,8 +97,10 @@ exit nonzero *before* any generation work begins.
 
 `scan` derives detection patterns from the live registry, confirms candidates
 with each format's `validate()` method, and prints JSON findings shaped as
-`{format,start,end,confidence}`. By default, it does **not** echo matched input
-values. `--show-matches` is the explicit opt-in for debugging and should be
+`{format,start,end,confidence}`. If no registered format matches a token-like
+high-entropy string, it falls back to an `unknown-token` finding with `low`
+confidence and a same-shape decoy. By default, `scan` does **not** echo matched
+input values. `--show-matches` is the explicit opt-in for debugging and should be
 handled carefully.
 
 `auto-decoy` runs the same scan and generates one matching synthetic decoy per
@@ -107,9 +109,11 @@ not a sanitizer: only detected scannable spans are replaced, and unrelated input
 text is preserved.
 
 Prefix-less generic formats such as `aws-secret-access-key`, `oauth-bearer`, and
-`database-password` are excluded from scanning to avoid noisy false positives.
-Checksum-confirmed formats report `high` confidence; structural matches report
-`medium`.
+`database-password` are excluded from registry classification to avoid noisy
+false positives; sufficiently token-like values may still be replaced by the
+unknown fallback. Checksum-confirmed formats report `high` confidence,
+registry-structural matches report `medium`, and unknown fallback matches report
+`low`.
 
 ## Web UI
 
