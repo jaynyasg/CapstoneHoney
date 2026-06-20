@@ -83,3 +83,38 @@ def test_run_generate_from_golden_fixture_model():
     assert len(out["tokens"]) == 3
     spec = get_format("aws-access-key-id")
     assert all(spec.validate(t) for t in out["tokens"])
+
+
+from detect.dp_honey.errors import ModelArtifactExistsError
+
+
+def test_run_train_writes_and_list_models_shows_it(tmp_path):
+    result = service.run_train(
+        {"format": "github-ghp", "out_name": "demo", "corpus_size": 20, "seed": 1},
+        models_dir=tmp_path,
+    )
+    assert result["saved"] == "demo.json"
+    assert (tmp_path / "demo.json").exists()
+
+    models = service.list_models(models_dir=tmp_path)
+    names = {m["name"] for m in models}
+    assert "demo" in names
+    assert service.GOLDEN_NAME in names  # the fixture is always listed
+    demo = next(m for m in models if m["name"] == "demo")
+    assert demo["slug"] == "github-ghp"
+    assert demo["source"] == "library"
+
+
+def test_run_train_refuses_overwrite_without_force(tmp_path):
+    args = {"format": "github-ghp", "out_name": "demo", "corpus_size": 20, "seed": 1}
+    service.run_train(args, models_dir=tmp_path)
+    with pytest.raises(ModelArtifactExistsError):
+        service.run_train(args, models_dir=tmp_path)
+
+
+def test_run_train_rejects_unsafe_out_name(tmp_path):
+    with pytest.raises(InvalidModelName):
+        service.run_train(
+            {"format": "github-ghp", "out_name": "../evil", "corpus_size": 20},
+            models_dir=tmp_path,
+        )

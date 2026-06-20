@@ -26,7 +26,7 @@ from ..bigram import (
 )
 from ..errors import DPHoneyError
 from ..formats import get_format, list_formats
-from ..model_io import load_model
+from ..model_io import load_model, read_artifact_dict, save_model
 from ..realism import REPORT_MAX, compute_report, enforce_count_limit
 
 # Reserved label the UI uses for the committed synthetic golden fixture.
@@ -124,3 +124,52 @@ def run_report(params: dict, models_dir: Optional[Path] = None) -> dict:
         max_repair_attempts=int(params.get("max_attempts", DEFAULT_MAX_REPAIR_ATTEMPTS)),
     )
     return compute_report(tokens, model)
+
+
+def run_train(params: dict, models_dir: Optional[Path] = None) -> dict:
+    """Train a model from format params and save it into the models dir."""
+    out_name = params.get("out_name", "")
+    if out_name == GOLDEN_NAME or not out_name or ".." in out_name or not _SAFE_NAME.match(out_name):
+        raise InvalidModelName(f"unsafe output name: {out_name!r}")
+    directory = _models_dir(models_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    filename = out_name if out_name.endswith(".json") else f"{out_name}.json"
+    model = build_model(
+        params["format"],
+        epsilon=float(params.get("epsilon", DEFAULT_EPSILON)),
+        clip=float(params.get("clip", DEFAULT_CLIP)),
+        corpus_size=int(params.get("corpus_size", DEFAULT_CORPUS_SIZE)),
+        train_seed=int(params.get("seed", DEFAULT_TRAIN_SEED)),
+    )
+    save_model(model, directory / filename, force=bool(params.get("force", False)))
+    return {
+        "saved": filename,
+        "format": model.format_slug,
+        "epsilon": model.epsilon,
+        "clip": model.clip,
+        "corpus_size": model.corpus_size,
+        "train_seed": model.train_seed,
+    }
+
+
+def _describe_model(name: str, path: Path, source: str) -> dict:
+    info = {"name": name, "source": source, "slug": None}
+    try:
+        data = read_artifact_dict(path)
+        info["slug"] = data.get("format", {}).get("slug")
+        info["schema_version"] = data.get("schema_version")
+    except DPHoneyError:
+        info["error"] = "unreadable"
+    return info
+
+
+def list_models(models_dir: Optional[Path] = None) -> list[dict]:
+    """List the committed golden fixture plus any saved models in the models dir."""
+    entries: list[dict] = []
+    if GOLDEN_PATH.exists():
+        entries.append(_describe_model(GOLDEN_NAME, GOLDEN_PATH, "fixture"))
+    directory = _models_dir(models_dir)
+    if directory.exists():
+        for path in sorted(directory.glob("*.json")):
+            entries.append(_describe_model(path.stem, path, "library"))
+    return entries
