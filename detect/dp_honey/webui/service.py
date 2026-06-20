@@ -14,15 +14,32 @@ from typing import Optional
 import numpy as np
 
 from ..__main__ import GENERATE_MAX
+from ..bigram import (
+    DEFAULT_CLIP,
+    DEFAULT_CORPUS_SIZE,
+    DEFAULT_EPSILON,
+    DEFAULT_MAX_REPAIR_ATTEMPTS,
+    DEFAULT_SAMPLE_SEED,
+    DEFAULT_TRAIN_SEED,
+    BigramHoneytokenModel,
+    build_model,
+)
 from ..errors import DPHoneyError
 from ..formats import get_format, list_formats
-from ..realism import REPORT_MAX, enforce_count_limit
+from ..model_io import load_model
+from ..realism import REPORT_MAX, compute_report, enforce_count_limit
 
 # Reserved label the UI uses for the committed synthetic golden fixture.
 GOLDEN_NAME = "golden-fixture"
 GOLDEN_PATH = Path("tests/fixtures/dp_honey/golden_model.json")
 
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+
+_SAFETY = {
+    "synthetic_only": True,
+    "provider_valid": False,
+    "note": "Synthetic, shape-only honeytokens. Not real, valid, or usable credentials.",
+}
 
 
 class InvalidModelName(DPHoneyError):
@@ -69,3 +86,41 @@ def preview_corpus(fmt: str, count: int, seed: int) -> list[str]:
     spec = get_format(fmt)
     rng = np.random.default_rng(seed)
     return [spec.random_example(rng) for _ in range(count)]
+
+
+def _model_from_params(params: dict, models_dir: Optional[Path] = None) -> BigramHoneytokenModel:
+    if params.get("source") == "model":
+        return load_model(resolve_model_ref(params["model"], models_dir))
+    return build_model(
+        params["format"],
+        epsilon=float(params.get("epsilon", DEFAULT_EPSILON)),
+        clip=float(params.get("clip", DEFAULT_CLIP)),
+        corpus_size=int(params.get("corpus_size", DEFAULT_CORPUS_SIZE)),
+        train_seed=int(params.get("train_seed", DEFAULT_TRAIN_SEED)),
+    )
+
+
+def run_generate(params: dict, models_dir: Optional[Path] = None) -> dict:
+    """Generate a batch of synthetic tokens from format params or a saved model."""
+    count = int(params.get("count", 1))
+    enforce_count_limit(count, maximum=GENERATE_MAX, label="count")
+    model = _model_from_params(params, models_dir)
+    tokens = model.sample(
+        count,
+        seed=int(params.get("seed", DEFAULT_SAMPLE_SEED)),
+        max_repair_attempts=int(params.get("max_attempts", DEFAULT_MAX_REPAIR_ATTEMPTS)),
+    )
+    return {"tokens": tokens, "format": model.format_slug, "safety": dict(_SAFETY)}
+
+
+def run_report(params: dict, models_dir: Optional[Path] = None) -> dict:
+    """Generate a batch (<= REPORT_MAX) and compute realism metrics."""
+    count = int(params.get("count", 1))
+    enforce_count_limit(count, maximum=REPORT_MAX, label="count")
+    model = _model_from_params(params, models_dir)
+    tokens = model.sample(
+        count,
+        seed=int(params.get("seed", DEFAULT_SAMPLE_SEED)),
+        max_repair_attempts=int(params.get("max_attempts", DEFAULT_MAX_REPAIR_ATTEMPTS)),
+    )
+    return compute_report(tokens, model)
