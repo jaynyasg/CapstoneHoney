@@ -37,6 +37,7 @@ from .errors import (
 )
 from .formats import REGISTRY_VERSION, get_format, list_format_slugs, list_formats
 from .grammar import FormatSpec, Literal, Variable
+from .model_io import SCHEMA_VERSION, load_model, model_to_dict, save_model
 
 __version__ = "0.1.0"
 
@@ -56,6 +57,11 @@ __all__ = [
     "build_model",
     "train_model",
     "BigramHoneytokenModel",
+    # artifact IO
+    "SCHEMA_VERSION",
+    "save_model",
+    "load_model",
+    "model_to_dict",
     # errors
     "DPHoneyError",
     "UnknownFormatError",
