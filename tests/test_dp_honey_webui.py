@@ -154,3 +154,11 @@ def test_run_generate_missing_format_raises():
 def test_run_report_metadata_is_synthetic_only():
     report = service.run_report({"source": "format", "format": "github-ghp", "count": 10, "seed": 1})
     assert report["safety"]["provider_valid"] is False
+
+
+def test_launcher_parser_defaults_to_localhost():
+    from detect.dp_honey.webui.__main__ import build_parser
+
+    args = build_parser().parse_args([])
+    assert args.host == "127.0.0.1"
+    assert args.port == 8000
