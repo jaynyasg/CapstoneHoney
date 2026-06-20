@@ -118,3 +118,22 @@ def test_run_train_rejects_unsafe_out_name(tmp_path):
             {"format": "github-ghp", "out_name": "../evil", "corpus_size": 20},
             models_dir=tmp_path,
         )
+
+
+def test_run_inspect_golden_fixture_reports_ok():
+    info = service.run_inspect(service.GOLDEN_NAME)
+    assert info["format"] == "aws-access-key-id"
+    assert info["snapshot_status"] == "OK"
+    assert info["schema_version"] == "1"
+    assert info["safety"]["provider_valid"] is False
+
+
+def test_run_validate_golden_fixture_is_valid():
+    assert service.run_validate(service.GOLDEN_NAME) == {"valid": True, "error": None}
+
+
+def test_run_validate_reports_error_for_bad_artifact(tmp_path):
+    (tmp_path / "broken.json").write_text("{not json", encoding="utf-8")
+    result = service.run_validate("broken", models_dir=tmp_path)
+    assert result["valid"] is False
+    assert result["error"]

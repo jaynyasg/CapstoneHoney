@@ -24,7 +24,7 @@ from ..bigram import (
     BigramHoneytokenModel,
     build_model,
 )
-from ..errors import DPHoneyError
+from ..errors import DPHoneyError, UnknownFormatError
 from ..formats import get_format, list_formats
 from ..model_io import load_model, read_artifact_dict, save_model
 from ..realism import REPORT_MAX, compute_report, enforce_count_limit
@@ -173,3 +173,43 @@ def list_models(models_dir: Optional[Path] = None) -> list[dict]:
         for path in sorted(directory.glob("*.json")):
             entries.append(_describe_model(path.stem, path, "library"))
     return entries
+
+
+def _snapshot_status(slug: str, stored_hash) -> str:
+    # Mirrors detect.dp_honey.__main__._snapshot_status (kept local to avoid
+    # importing a private CLI helper).
+    try:
+        live = get_format(slug)
+    except UnknownFormatError:
+        return "UNKNOWN_FORMAT"
+    return "OK" if stored_hash == live.spec_hash() else "DRIFT"
+
+
+def run_inspect(model_name: str, models_dir: Optional[Path] = None) -> dict:
+    """Lenient inspection of an artifact (reports drift; never raises on drift)."""
+    data = read_artifact_dict(resolve_model_ref(model_name, models_dir))
+    fmt = data.get("format", {})
+    privacy = data.get("privacy", {})
+    alphabet = data.get("alphabet", {})
+    slug = fmt.get("slug", "?")
+    return {
+        "schema_version": data.get("schema_version"),
+        "format": slug,
+        "registry_version": fmt.get("registry_version"),
+        "epsilon": privacy.get("epsilon"),
+        "clip": privacy.get("clip"),
+        "corpus_size": privacy.get("corpus_size"),
+        "train_seed": privacy.get("train_seed"),
+        "alphabet_size": len(alphabet.get("symbols", [])),
+        "snapshot_status": _snapshot_status(slug, fmt.get("spec_hash")),
+        "safety": data.get("safety", {}),
+    }
+
+
+def run_validate(model_name: str, models_dir: Optional[Path] = None) -> dict:
+    """Strictly validate an artifact; never raises — returns a result dict."""
+    try:
+        load_model(resolve_model_ref(model_name, models_dir))
+        return {"valid": True, "error": None}
+    except DPHoneyError as exc:
+        return {"valid": False, "error": str(exc)}
