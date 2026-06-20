@@ -194,3 +194,42 @@ def test_preview_and_report_emit_safety_banner(capsys):
     assert "synthetic" in capsys.readouterr().err.lower()
     assert main(["report", "--format", "github-ghp", "--count", "5", "--seed", "0"]) == 0
     assert "synthetic" in capsys.readouterr().err.lower()
+
+
+def test_cli_scan_reports_findings_without_secret_values(tmp_path, capsys):
+    import numpy as np
+
+    spec = get_format("github-ghp")
+    token = spec.random_example(np.random.default_rng(1))
+    path = tmp_path / "in.txt"
+    path.write_text(f"TOKEN={token}", encoding="utf-8")
+    assert main(["scan", "--file", str(path)]) == 0
+    out = capsys.readouterr().out
+    payload = json.loads(out)
+    assert payload["findings"][0]["format"] == "github-ghp"
+    assert token not in out
+
+
+def test_cli_scan_show_matches_is_explicit_opt_in(tmp_path, capsys):
+    import numpy as np
+
+    spec = get_format("github-ghp")
+    token = spec.random_example(np.random.default_rng(1))
+    path = tmp_path / "in.txt"
+    path.write_text(f"TOKEN={token}", encoding="utf-8")
+    assert main(["scan", "--file", str(path), "--show-matches"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["matches"] == [token]
+
+
+def test_cli_auto_decoy_emits_swapped_text(tmp_path, capsys):
+    import numpy as np
+
+    spec = get_format("github-ghp")
+    token = spec.random_example(np.random.default_rng(2))
+    path = tmp_path / "in.txt"
+    path.write_text(f"TOKEN={token}", encoding="utf-8")
+    assert main(["auto-decoy", "--file", str(path), "--seed", "1"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload["decoys"]) == 1
+    assert token not in payload["swapped_text"]

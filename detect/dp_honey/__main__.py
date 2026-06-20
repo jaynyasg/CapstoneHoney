@@ -14,10 +14,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Optional, Sequence
 
 import numpy as np
 
+from . import scanner
 from .bigram import (
     DEFAULT_CLIP,
     DEFAULT_CORPUS_SIZE,
@@ -101,6 +103,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_report.add_argument("--count", type=int, required=True, help=f"batch size (<= {REPORT_MAX})")
     p_report.set_defaults(func=cmd_report)
 
+    p_scan = sub.add_parser("scan", help="detect secret-shaped substrings in text")
+    p_scan.add_argument("--file", help="path to scan (default: stdin)")
+    p_scan.add_argument(
+        "--show-matches",
+        action="store_true",
+        help="also include matched values (OFF by default; handle with care)",
+    )
+    p_scan.set_defaults(func=cmd_scan)
+
+    p_auto = sub.add_parser("auto-decoy", help="scan text and emit a matching decoy per finding")
+    p_auto.add_argument("--file", help="path to scan (default: stdin)")
+    p_auto.add_argument("--seed", type=int, default=0)
+    p_auto.set_defaults(func=cmd_auto_decoy)
+
     return parser
 
 
@@ -138,6 +154,12 @@ def _model_from_args(args: argparse.Namespace) -> BigramHoneytokenModel:
 
 def _emit_safety_banner() -> None:
     print(SAFETY_BANNER, file=sys.stderr)
+
+
+def _read_input(path: Optional[str]) -> str:
+    if path:
+        return Path(path).read_text(encoding="utf-8")
+    return sys.stdin.read()
 
 
 # --- command handlers ----------------------------------------------------------
@@ -240,6 +262,24 @@ def cmd_report(args: argparse.Namespace) -> int:
     _emit_safety_banner()
     tokens = model.sample(args.count, seed=args.seed, max_repair_attempts=args.max_attempts)
     print(json.dumps(compute_report(tokens, model), indent=2))
+    return 0
+
+
+def cmd_scan(args: argparse.Namespace) -> int:
+    text = _read_input(args.file)
+    findings = scanner.scan(text)
+    output: dict[str, object] = {"findings": findings}
+    if args.show_matches:
+        print("# DP-HONEY warning: --show-matches echoes matched input values.", file=sys.stderr)
+        output["matches"] = [text[int(finding["start"]) : int(finding["end"])] for finding in findings]
+    print(json.dumps(output, indent=2))
+    return 0
+
+
+def cmd_auto_decoy(args: argparse.Namespace) -> int:
+    _emit_safety_banner()
+    result = scanner.auto_decoy(_read_input(args.file), seed=args.seed)
+    print(json.dumps(result, indent=2))
     return 0
 
 
