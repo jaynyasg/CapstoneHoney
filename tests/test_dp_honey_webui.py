@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from detect.dp_honey import get_format
+from detect.dp_honey.errors import CountLimitError, ModelArtifactExistsError
 from detect.dp_honey.webui import service
 from detect.dp_honey.webui.service import InvalidModelName
 
@@ -23,10 +25,6 @@ def test_resolve_model_ref_maps_golden_label_to_fixture():
     ref = service.resolve_model_ref(service.GOLDEN_NAME)
     assert ref.name == "golden_model.json"
     assert "fixtures" in ref.parts
-
-
-from detect.dp_honey import get_format
-from detect.dp_honey.errors import CountLimitError
 
 
 def test_list_formats_payload_has_all_slugs_and_safety():
@@ -83,9 +81,6 @@ def test_run_generate_from_golden_fixture_model():
     assert len(out["tokens"]) == 3
     spec = get_format("aws-access-key-id")
     assert all(spec.validate(t) for t in out["tokens"])
-
-
-from detect.dp_honey.errors import ModelArtifactExistsError
 
 
 def test_run_train_writes_and_list_models_shows_it(tmp_path):
