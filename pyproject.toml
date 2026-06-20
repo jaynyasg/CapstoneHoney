@@ -28,9 +28,11 @@ dependencies = ["numpy>=1.24"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
+ui = ["fastapi>=0.110", "uvicorn>=0.27"]
 
 [project.scripts]
 dp-honey = "detect.dp_honey.__main__:main"
+dp-honey-ui = "detect.dp_honey.webui.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/jaynyasg/CapstoneHoney"
