@@ -86,6 +86,20 @@ python -m detect.dp_honey report --format github-ghp --count 100 --seed 1
 capped at 5000 (metrics require materializing the whole batch). Oversized counts
 exit nonzero *before* any generation work begins.
 
+## Web UI
+
+A local browser UI runs every command without the terminal:
+
+```bash
+pip install -e ".[ui]"
+python -m detect.dp_honey.webui      # serves http://127.0.0.1:8000 (localhost only)
+```
+
+It calls the library directly (no subprocess), keeps the synthetic/shape-only
+banner on every screen, and offers a model library (saved models in `models/`
+plus the committed golden fixture). The API is a thin FastAPI layer; see `/docs`
+for the auto-generated endpoint reference.
+
 ---
 
 ## Quickstart (Python API)
