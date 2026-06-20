@@ -17,6 +17,12 @@ Public API (expanded as the package is built):
 
 from __future__ import annotations
 
+from .bigram import (
+    BigramHoneytokenModel,
+    build_model,
+    generate_honeytokens,
+    train_model,
+)
 from .errors import (
     CountLimitError,
     DPHoneyError,
@@ -45,6 +51,11 @@ __all__ = [
     "FormatSpec",
     "Literal",
     "Variable",
+    # generation
+    "generate_honeytokens",
+    "build_model",
+    "train_model",
+    "BigramHoneytokenModel",
     # errors
     "DPHoneyError",
     "UnknownFormatError",
