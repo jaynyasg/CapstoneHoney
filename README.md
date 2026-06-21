@@ -246,6 +246,19 @@ core workflows as the CLI:
 - run realism reports
 - scan and auto-decoy pasted text
 
+The sidebar sections map to these workflows:
+
+| Sidebar section | What it does |
+| --- | --- |
+| **Formats** | Shows every registered token family, including its slug, display name, category, description, provider-valid flag, and safety note. Use this to decide which known format to generate or inspect. |
+| **Preview corpus** | Generates uniform synthetic examples for one selected format. This shows the raw shape DP-HONEY trains from before any bigram model sampling. |
+| **Generate** | Produces synthetic honeytokens. You can train on the fly from a format or sample from a saved model artifact. |
+| **Report** | Generates a batch and computes realism/sanity metrics such as validity rate, duplicate rate, character entropy, and average bigram log-likelihood. |
+| **Scan & auto-decoy** | Lets you paste text, detect registered secrets plus low-confidence `unknown-token` fallback matches, and return swapped text where detected spans are replaced with synthetic decoys. |
+| **Train** | Trains a reusable DP-noised bigram model for a selected format and saves it into the local model library. |
+| **Inspect model** | Reads model metadata without enforcing every strict load rule, so you can see schema version, format slug, registry version, privacy settings, alphabet size, safety note, and snapshot status. |
+| **Validate** | Strictly validates a model artifact and reports whether it can be safely loaded for generation. Use this as the pass/fail check for saved models. |
+
 Run it with:
 
 ```bash
